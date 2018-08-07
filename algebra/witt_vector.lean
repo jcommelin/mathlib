@@ -46,36 +46,6 @@ end
 
 end finset
 
-section finsupp
-
-open finsupp
-
-variables {α : Type w} {β : Type u₁} [add_comm_monoid β]
-variables [decidable_eq α] [decidable_eq β]
-variables (f : α → β → R) (s : α →₀ β)
-variables (hf1 : ∀ (a : α), f a 0 = 0)
-variables (hf2 : ∀ (a : α) (b₁ b₂ : β), f a (b₁ + b₂) = f a b₁ + f a b₂)
-include hf1 hf2
-
-lemma ring_hom_sum.finsupp : i (sum s f) = sum s (λ a b, i (f a b)) :=
-begin
-  apply finsupp.induction s,
-  { repeat { rw sum_zero_index },
-    exact is_ring_hom.map_zero i },
-  { intros a b f' H1 H2 ih,
-    repeat { rw sum_add_index },
-    repeat { rw sum_single_index },
-    rw [is_ring_hom.map_add i, ← ih],
-    { rw hf1; exact is_ring_hom.map_zero i },
-    { apply hf1 },
-    { intros, rw hf1; exact is_ring_hom.map_zero i },
-    { intros, rw hf2; exact is_ring_hom.map_add i },
-    { apply hf1 },
-    { apply hf2 } }
-end
-
-end finsupp
-
 end ring_hom_commutes_with_stuff
 
 -- namespace mv_polynomial
@@ -90,14 +60,6 @@ end ring_hom_commutes_with_stuff
 -- theorem eval_assoc₁
 -- (f : mv_polynomial σ R) (g : σ → mv_polynomial τ R) (h : τ → R)
 -- : f.eval (λ n : σ, (g n).eval h) = ((map C f).eval g).eval h :=
--- begin
---   simp [eval],
---   sorry
--- end
-
--- theorem eval_assoc₂
--- (f : mv_polynomial σ (mv_polynomial τ R)) (g : σ → mv_polynomial τ R) (h : τ → R)
--- : C ((f.eval g).eval h) = f.eval (λ n : σ, C ((g n).eval h)) :=
 -- begin
 --   simp [eval],
 --   sorry
@@ -126,13 +88,6 @@ variables {R : Type u} [decidable_eq R] [comm_ring R]
 def witt_polynomial (n : ℕ) : mv_polynomial ℕ R :=
 finset.sum finset.univ (λ i : fin (n+1), (p^i.val * (X i.val)^(p^(n-i.val))))
 
--- noncomputable theory
--- local attribute [instance] classical.prop_decidable
-
--- def ℤpinv := localization.away (p : ℤ)
--- instance : comm_ring ℤpinv := localization.away.comm_ring _
-
--- def pinv : ℤpinv := sorry
 
 def X_in_terms_of_W : ℕ → mv_polynomial ℕ ℚ
 | n := (X n - (finset.sum finset.univ (λ i : fin n, have _ := i.2, (p^i.val * (X_in_terms_of_W i.val)^(p^(n-i.val)))))) * C (1/p^(n+1))
@@ -143,55 +98,39 @@ lemma X_in_terms_of_W_eq {n : ℕ} : X_in_terms_of_W n =
 
 instance foobar : comm_ring (mv_polynomial ℕ ℚ) := by apply_instance
 
-lemma X_in_terms_of_W_prop (n : ℕ) : (X_in_terms_of_W n).map₂ witt_polynomial C = X n :=
+lemma X_in_terms_of_W_prop (n : ℕ) : (X_in_terms_of_W n).eval₂ C witt_polynomial = X n :=
 begin
   apply nat.strong_induction_on n,
   intros n H,
   rw X_in_terms_of_W_eq,
-  simp only [map₂_mul, map₂_add, map₂_sub, map₂_neg, map₂_C, map₂_X],
-  rw (_ : witt_polynomial n - map₂ witt_polynomial C
-          (finset.sum finset.univ (λ (i : fin n), ↑p ^ i.val * X_in_terms_of_W (i.val) ^ p ^ (n - i.val)))
+  simp only [eval₂_mul, eval₂_add, eval₂_sub, eval₂_neg, eval₂_C, eval₂_X],
+  rw (_ : witt_polynomial n - eval₂ C witt_polynomial
+           (finset.sum finset.univ (λ (i : fin n), ↑p ^ i.val * X_in_terms_of_W (i.val) ^ p ^ (n - i.val)))
           = X n * C (p ^ (n + 1))),
-          { -- rw [mul_assoc, ←is_ring_hom.map_mul C],
-            -- simp,
-            sorry
-            -- conv in (C (_ * _))
-            -- begin
-            --   congr,
-            --   rw mul_right_inv,
-            -- end,
+          { rw [mul_assoc, ←is_ring_hom.map_mul C],
+            conv
+            begin
+              to_lhs,
+              congr, skip, congr,
+              simp,
+              rw mul_right_inv (↑p ^ (n + 1)), -- fails
+            end,
           },
   conv
   begin
     to_lhs,
     congr, skip,
-    rw @ring_hom_sum.finset (mv_polynomial ℕ ℚ) (by apply_instance) _ _ (map₂ witt_polynomial C) _ (fin n) _ finset.univ
+    rw @ring_hom_sum.finset (mv_polynomial ℕ ℚ) (by apply_instance) _ _ (eval₂ C witt_polynomial) _ (fin n) _ finset.univ
     (λ (i : fin n), ↑p ^ i.val * X_in_terms_of_W (i.val) ^ p ^ (n - i.val)),
     congr, skip,
-    simp only [function.comp, map₂_mul],
+    simp only [function.comp, eval₂_mul],
     funext,
-    rw ring_hom_powers (map₂ witt_polynomial C) _ _,
-    rw ring_hom_powers (map₂ witt_polynomial C) _ _,
+    rw ring_hom_powers (eval₂ C witt_polynomial) _ _,
+    rw ring_hom_powers (eval₂ C witt_polynomial) _ _,
     rw H x.val x.is_lt,
     skip,
   end,
 end
-
--- theorem X_in_terms_of_W_prop2 (n : ℕ) : (witt_polynomial n).eval (X_in_terms_of_W) = X n :=
--- begin
---   simp only [witt_polynomial, ring_hom_sum.finset (eval X_in_terms_of_W), function.comp],
---   simp only [is_ring_hom.map_mul (eval X_in_terms_of_W), ring_hom_powers (eval X_in_terms_of_W)],
---   -- simp only [X_in_terms_of_W_eq],
---   sorry
--- end
-
--- theorem X_in_terms_of_W_prop3 (f g : ℕ → mv_polynomial (bool × ℕ) ℚ) :
--- (∀ n, (map C (X_in_terms_of_W n)).eval f = (map C (X_in_terms_of_W n)).eval g) → f = g :=
--- begin
---   intro H,
---   funext n,
---   sorry
--- end
 
 -- def witt_structure_rat (Φ : mv_polynomial bool ℚ) (n : ℕ) : mv_polynomial (bool × ℕ) ℚ :=
 -- (map C (X_in_terms_of_W n)).eval (λ k : ℕ,
