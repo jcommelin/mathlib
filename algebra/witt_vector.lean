@@ -14,18 +14,17 @@ instance int.cast.is_ring_hom (R : Type u) [ring R] : is_ring_hom (int.cast : �
   map_mul := int.cast_mul,
   map_one := int.cast_one }
 
-
 section ring_hom_commutes_with_stuff
 
-variables {R : Type u} [comm_ring R]
-variables {S : Type v} [comm_ring S]
-variables (i : R → S) [is_ring_hom i]
+variables {R : Type u} [comm_semiring R]
+variables {S : Type v} [comm_semiring S]
+variables (i : R → S) [is_semiring_hom i]
 
-@[simp] lemma ring_hom_powers (x : R) (n : ℕ) : i(x^n) = (i x)^n :=
+@[simp] lemma semiring_hom_powers (x : R) (n : ℕ) : i(x^n) = (i x)^n :=
 begin
   induction n with n ih,
-  { simp [pow_zero,is_ring_hom.map_one i] },
-  simp [pow_succ,is_ring_hom.map_mul i,ih]
+  { simp [pow_zero,is_semiring_hom.map_one i] },
+  simp [pow_succ,is_semiring_hom.map_mul i,ih]
 end
 
 section finset
@@ -34,24 +33,21 @@ open finset
 
 variables {X : Type w} [decidable_eq X] (s : finset X) (f : X → R)
 
-lemma ring_hom_sum.finset : i (sum s f) = sum s (i ∘ f) :=
+lemma semiring_hom_sum.finset : i (sum s f) = sum s (i ∘ f) :=
 begin
   apply finset.induction_on s,
   { repeat { rw sum_empty },
-    exact is_ring_hom.map_zero i },
+    exact is_semiring_hom.map_zero i },
   { intros x s' hx ih,
     repeat { rw sum_insert hx },
-    rw [is_ring_hom.map_add i, ←ih] }
-end
-
-lemma quux {A : Type*} [add_comm_group A] (n : ℕ) (f : ℕ → A) : (finset.range (n+1)).sum f = f n + (finset.range n).sum f :=
-begin
-  sorry
+    rw [is_semiring_hom.map_add i, ←ih] }
 end
 
 end finset
 
 end ring_hom_commutes_with_stuff
+
+lemma quux {A : Type*} [add_comm_group A] (n : ℕ) (f : ℕ → A) : (finset.range (n+1)).sum f = f n + (finset.range n).sum f := by simp
 
 -- namespace mv_polynomial
 
@@ -109,17 +105,27 @@ lemma X_in_terms_of_W_eq {n : ℕ} : X_in_terms_of_W n =
       C (1 / ↑p ^ n) :=
 by rw [X_in_terms_of_W, range_sum_eq_fin_univ_sum]
 
-set_option pp.all true
+set_option profiler true
+
+instance foo : comm_semiring (mv_polynomial ℕ ℚ) := by apply_instance
+
+variables {α : Type*} {σ : Type*} [decidable_eq σ] [decidable_eq α] [comm_semiring α]
+instance bar : is_semiring_hom (C : α → mv_polynomial σ α) := by apply_instance
 
 lemma X_in_terms_of_W_prop (n : ℕ) : (X_in_terms_of_W n).eval₂ C witt_polynomial = X n :=
 begin
   apply nat.strong_induction_on n,
+  clear n,
   intros n H,
   rw X_in_terms_of_W_eq,
-  simp only [eval₂_mul, eval₂_add, eval₂_sub, eval₂_neg, eval₂_C, eval₂_X],
+  rw [eval₂_mul, eval₂_C],
+  simp only [eval₂_sub],
+  rw eval₂_X,
+  rw @semiring_hom_sum.finset (mv_polynomial ℕ ℚ) foo _ _ (eval₂ C witt_polynomial) _ _ _ (finset.range n)
+  (λ i, C ↑p ^ i * X_in_terms_of_W (i) ^ p ^ (n - i)),
   rw (_ : witt_polynomial n -
-         eval₂ C witt_polynomial
-           (finset.sum (finset.range n) (λ (i : ℕ), C ↑p ^ i * X_in_terms_of_W i ^ p ^ (n - i)))
+         finset.sum (finset.range n)
+           (eval₂ C witt_polynomial ∘ λ (i : ℕ), C ↑p ^ i * X_in_terms_of_W i ^ p ^ (n - i))
           = C (p ^ n) * X n),
   { rw [mul_comm, ←mul_assoc],
     conv
@@ -136,31 +142,20 @@ begin
     sorry },
   -- Deep breath.
   rw sub_eq_iff_eq_add,
+  rw @semiring_hom_powers _ _ _ _ C bar _ _,
   unfold witt_polynomial,
   rw quux n (λ (i : ℕ), (C ↑p ^ i * X i ^ p ^ (n - i) : mv_polynomial ℕ ℚ)),
-  dsimp,
+  rw function.comp,
+  simp only [eval₂_mul],
   rw nat.sub_self,
-  -- rw @ring_hom_powers _ _ (mv_polynomial ℕ ℚ) (by apply_instance) C (by apply_instance) (↑p) n,
-  rw @ring_hom_sum.finset (mv_polynomial ℕ ℚ) (by apply_instance) _ _ (eval₂ C witt_polynomial) _ _ _ (finset.range n)
-    (λ i, C ↑p ^ i * X_in_terms_of_W (i) ^ p ^ (n - i)),
-  -- rw ring_hom_sum.finset (eval₂ C witt_polynomial) (finset.range n)
-  -- (λ i, C ↑p ^ i * X_in_terms_of_W (i) ^ p ^ (n - i)),
-  simp only [function.comp, eval₂_mul],
-  dsimp,
+  simp,
   congr,
-  { rw ring_hom_powers C _ _,
-    sorry },
-  { rw nat.sub_self,
-    simp },
-  { funext,
-    dsimp [fin.raise],
-    congr,
-    { --rw ring_hom_powers (eval₂ C witt_polynomial) _ i.val,
-      --rw eval₂_C,
-      sorry },
-    { rw ring_hom_powers (eval₂ C witt_polynomial) _ _,
-      rw H x.val x.is_lt }
-    }
+  funext i,
+  rw semiring_hom_powers (eval₂ C witt_polynomial) _ _,
+  rw eval₂_C,
+  rw semiring_hom_powers (eval₂ C witt_polynomial) _ _,
+  rw H i,
+  repeat {sorry}, end #exit
 end
 
 -- def witt_structure_rat (Φ : mv_polynomial bool ℚ) (n : ℕ) : mv_polynomial (bool × ℕ) ℚ :=
