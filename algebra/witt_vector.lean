@@ -44,7 +44,7 @@ begin
     rw [is_ring_hom.map_add i, ←ih] }
 end
 
-lemma quux {A : Type*} [add_comm_group A] {n : ℕ} (f : fin (n+1) → A) : sum univ f = f ⟨n,nat.le_refl (n+1)⟩ + sum univ (λ i : fin n, f i.raise) :=
+lemma quux {A : Type*} [add_comm_group A] (n : ℕ) (f : ℕ → A) : (finset.range (n+1)).sum f = f n + (finset.range n).sum f :=
 begin
   sorry
 end
@@ -86,24 +86,30 @@ end nat
 open nat.Prime
 variable [nat.Prime] -- fix a prime p
 
+lemma p_ne_zero : p ≠ 0 := nat.pos_iff_ne_zero.mp $ nat.prime.pos pp
+
 open mv_polynomial
 
 variables {R : Type u} [decidable_eq R] [comm_ring R]
 
+theorem range_sum_eq_fin_univ_sum {α} [add_comm_monoid α] (f : ℕ → α) (n) :
+  (finset.range n).sum f = finset.univ.sum (λ i : fin n, f i.1) :=
+show _ = @multiset.sum α _ ↑(list.map _ _),
+by rw [list.map_pmap, list.pmap_eq_map]; refl
+
 def witt_polynomial (n : ℕ) : mv_polynomial ℕ R :=
-finset.sum finset.univ (λ i : fin (n+1), (C p^i.val * (X i.val)^(p^(n-i.val))))
+(finset.range (n+1)).sum (λ i, (C p ^ i * X i ^ (p^(n-i))))
 
 def X_in_terms_of_W : ℕ → mv_polynomial ℕ ℚ
-| n := (X n - (finset.sum finset.univ (λ i : fin n, have _ := i.2, (C p^i.val * (X_in_terms_of_W i.val)^(p^(n-i.val)))))) * C (1/p^n)
+| n := (X n - (finset.sum finset.univ (λ i : fin n,
+  have _ := i.2, (C p^i.val * (X_in_terms_of_W i.val)^(p^(n-i.val)))))) * C (1/p^n)
 
 lemma X_in_terms_of_W_eq {n : ℕ} : X_in_terms_of_W n =
-    (X n - finset.sum finset.univ (λ (i : fin n), C ↑p ^ i.val * X_in_terms_of_W (i.val) ^ p ^ (n - i.val))) *
-      C (1 / ↑p ^ n)
-:= X_in_terms_of_W.equations._eqn_1 n
+    (X n - (finset.range n).sum (λ i, C p ^ i * X_in_terms_of_W i ^ p ^ (n - i))) *
+      C (1 / ↑p ^ n) :=
+by rw [X_in_terms_of_W, range_sum_eq_fin_univ_sum]
 
-instance foobar : comm_ring (mv_polynomial ℕ ℚ) := by apply_instance
-
-set_option pp.all false
+set_option pp.all true
 
 lemma X_in_terms_of_W_prop (n : ℕ) : (X_in_terms_of_W n).eval₂ C witt_polynomial = X n :=
 begin
@@ -111,8 +117,9 @@ begin
   intros n H,
   rw X_in_terms_of_W_eq,
   simp only [eval₂_mul, eval₂_add, eval₂_sub, eval₂_neg, eval₂_C, eval₂_X],
-  rw (_ : witt_polynomial n - eval₂ C witt_polynomial
-           (finset.sum finset.univ (λ (i : fin n), C ↑p ^ i.val * X_in_terms_of_W (i.val) ^ p ^ (n - i.val)))
+  rw (_ : witt_polynomial n -
+         eval₂ C witt_polynomial
+           (finset.sum (finset.range n) (λ (i : ℕ), C ↑p ^ i * X_in_terms_of_W i ^ p ^ (n - i)))
           = C (p ^ n) * X n),
   { rw [mul_comm, ←mul_assoc],
     conv
@@ -124,14 +131,21 @@ begin
     congr,
     simp,
     rw inv_mul_cancel _,
+    clear H,
+    apply pow_ne_zero,
     sorry },
   -- Deep breath.
-  rw @ring_hom_sum.finset (mv_polynomial ℕ ℚ) (by apply_instance) _ _ (eval₂ C witt_polynomial) _ (fin n) _ finset.univ
-    (λ (i : fin n), C ↑p ^ i.val * X_in_terms_of_W (i.val) ^ p ^ (n - i.val)),
-  simp only [function.comp, eval₂_mul],
   rw sub_eq_iff_eq_add,
   unfold witt_polynomial,
-  rw quux (λ (i : fin (n + 1)), ((C ↑p ^ i.val * X (i.val) ^ p ^ (n - i.val)) : mv_polynomial ℕ ℚ)),
+  rw quux n (λ (i : ℕ), (C ↑p ^ i * X i ^ p ^ (n - i) : mv_polynomial ℕ ℚ)),
+  dsimp,
+  rw nat.sub_self,
+  -- rw @ring_hom_powers _ _ (mv_polynomial ℕ ℚ) (by apply_instance) C (by apply_instance) (↑p) n,
+  rw @ring_hom_sum.finset (mv_polynomial ℕ ℚ) (by apply_instance) _ _ (eval₂ C witt_polynomial) _ _ _ (finset.range n)
+    (λ i, C ↑p ^ i * X_in_terms_of_W (i) ^ p ^ (n - i)),
+  -- rw ring_hom_sum.finset (eval₂ C witt_polynomial) (finset.range n)
+  -- (λ i, C ↑p ^ i * X_in_terms_of_W (i) ^ p ^ (n - i)),
+  simp only [function.comp, eval₂_mul],
   dsimp,
   congr,
   { rw ring_hom_powers C _ _,
