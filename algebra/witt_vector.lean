@@ -2,7 +2,7 @@ import data.nat.prime
 import algebra.group_power
 import tactic.ring
 import linear_algebra.multivariate_polynomial
-import ring_theory.localization
+import group_theory.subgroup
 
 universes u v w u₁
 
@@ -47,25 +47,6 @@ end finset
 
 end ring_hom_commutes_with_stuff
 
--- namespace mv_polynomial
-
--- variables {σ : Type u} [decidable_eq σ]
--- variables {R : Type v} [decidable_eq R] [comm_ring R]
--- variables {S : Type w} [decidable_eq S] [comm_ring S]
-
-
--- variables {τ : Type w} [decidable_eq τ]
-
--- theorem eval_assoc₁
--- (f : mv_polynomial σ R) (g : σ → mv_polynomial τ R) (h : τ → R)
--- : f.eval (λ n : σ, (g n).eval h) = ((map C f).eval g).eval h :=
--- begin
---   simp [eval],
---   sorry
--- end
-
--- end mv_polynomial
-
 namespace nat
 
 class Prime :=
@@ -107,6 +88,10 @@ instance eval_witt_hom : is_ring_hom (eval₂ C (@witt_polynomial _ R _ _)) :=
 @mv_polynomial.eval₂.is_ring_hom _ _ _ _ _ _ _ _ _
   (@C.is_ring_hom R ℕ _ (λ a b, by apply_instance) _) _
 
+instance eval_WX_hom : is_ring_hom (eval₂ C X_in_terms_of_W) :=
+@mv_polynomial.eval₂.is_ring_hom _ _ _ _ _ _ _ _ _
+  (@C.is_ring_hom ℚ ℕ _ (λ a b, by apply_instance) _) _
+
 lemma X_in_terms_of_W_prop'
   (f : mv_polynomial ℕ ℚ → mv_polynomial ℕ ℚ) [is_ring_hom f]
   (fC : ∀ (a : ℚ), f (C a) = C a)
@@ -138,41 +123,69 @@ begin
   introsI, exact X_in_terms_of_W_prop' f fC fX n
 end
 
--- def witt_structure_rat (Φ : mv_polynomial bool ℚ) (n : ℕ) : mv_polynomial (bool × ℕ) ℚ :=
--- (map C (X_in_terms_of_W n)).eval (λ k : ℕ,
---    (map C Φ).eval (λ b, ((witt_polynomial k).eval (λ i, X (b,i))))
--- )
+def witt_structure_rat (Φ : mv_polynomial bool ℚ) : ℕ → mv_polynomial (bool × ℕ) ℚ :=
+λ n, eval₂ C (λ k : ℕ,
+   Φ.eval₂ C (λ b, ((witt_polynomial k).eval (λ i, X (b,i))))
+) (X_in_terms_of_W n)
 
--- lemma witt_structure_rat_eq (Φ : mv_polynomial bool ℚ) (n : ℕ) :
--- witt_structure_rat Φ n = (map C (X_in_terms_of_W n)).eval (λ k : ℕ,
---    (map C Φ).eval (λ b, ((witt_polynomial k).eval (λ i, X (b,i))))
--- ) := rfl
+set_option profiler true
 
+lemma quux {A : Type*} [add_comm_group A] (n : ℕ) (f : ℕ → A) : (finset.range (n+1)).sum f = f n + (finset.range n).sum f := by simp
 
--- theorem witt_structure_prop (Φ : mv_polynomial bool ℚ) (φ : ℕ → mv_polynomial (bool × ℕ) ℚ) :
--- (∀ n : ℕ, (witt_polynomial n).eval φ = (map C Φ).eval (λ b, ((witt_polynomial n).eval (λ i, X (b,i)))))
--- ↔ φ = witt_structure_rat Φ
--- :=
--- begin
---   split,
---   { intro H,
---     funext n,
---     unfold witt_structure_rat,
---     rw show (λ (k : ℕ), eval (λ (b : bool), eval (λ (i : ℕ), X (b, i)) (witt_polynomial k)) (map C Φ)) =
---     (λ (k : ℕ), eval φ (witt_polynomial k)),
---     { funext k,
---       exact (H k).symm },
---     rw show φ n = (map C ((map C (X_in_terms_of_W n)).eval witt_polynomial)).eval φ,
---     { rw X_in_terms_of_W_prop,
---       rw map_ring_hom_X C,
---       exact eval_X.symm },
---     simp,
---     sorry },
---   { intro H,
---     intro k,
---     refine @congr _ _ _ _ k k _ rfl,
---     apply X_in_terms_of_W_prop3,
---     intro n,
---     rw ← witt_structure_rat_eq,
---     sorry }
--- end
+lemma X_in_terms_of_W_prop₂ (k : ℕ) : (witt_polynomial k).eval₂ C X_in_terms_of_W = X k :=
+begin
+  apply nat.strong_induction_on k,
+  clear k, intros k H,
+  dsimp only [witt_polynomial],
+  conv
+  begin
+    to_lhs,
+    congr, skip,
+    rw quux k (λ (i : ℕ), C ↑p ^ i * X i ^ p ^ (k - i)),
+  end,
+  -- generalize e : eval X_in_terms_of_W = f,
+  -- haveI : is_ring_hom f := by subst f; apply eval.is_ring_hom,
+  -- simp only [ring_hom_sum.finset f],
+  -- repeat {sorry}, end #exit
+  sorry
+end
+
+lemma eval₂_assoc
+{S : Type*} [decidable_eq S] [comm_ring S]
+{σ : Type*} [decidable_eq σ]
+{τ : Type*} [decidable_eq τ]
+{ι : Type*} [decidable_eq ι]
+(φ : σ → mv_polynomial ι S)
+(q : τ → mv_polynomial σ S)
+(p : mv_polynomial τ S)
+: eval₂ C (eval₂ C φ ∘ q) p = eval₂ C φ (eval₂ C q p)
+:=
+begin
+  rw eval₂_comp_left (eval₂ C φ),
+  congr, funext, simp,
+end
+
+theorem witt_structure_prop (Φ : mv_polynomial bool ℚ) (φ : ℕ → mv_polynomial (bool × ℕ) ℚ) :
+(((∀ (n : ℕ), (((witt_polynomial n).eval₂ C φ) = (eval₂ C (λ b : bool, ((witt_polynomial n).eval (λ i : ℕ, X (b,i)))) Φ)))
+↔ (φ = witt_structure_rat Φ)) : Prop)
+:=
+begin
+  split,
+  { intro H,
+    funext n,
+    unfold witt_structure_rat,
+    rw show φ n = ((X_in_terms_of_W n).eval₂ C witt_polynomial).eval₂ C φ,
+    { rw [X_in_terms_of_W_prop, eval₂_X] },
+    rw ← eval₂_assoc,
+    unfold function.comp,
+    congr,
+    funext k,
+    exact H k },
+  { intros H k,
+    subst H,
+    unfold witt_structure_rat,
+    rw ← function.comp,
+    rw eval₂_assoc,
+    rw X_in_terms_of_W_prop₂ k,
+    rw eval₂_X }
+end
