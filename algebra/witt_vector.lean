@@ -128,26 +128,48 @@ def witt_structure_rat (Φ : mv_polynomial bool ℚ) : ℕ → mv_polynomial (bo
    Φ.eval₂ C (λ b, ((witt_polynomial k).eval (λ i, X (b,i))))
 ) (X_in_terms_of_W n)
 
-set_option profiler true
-
 lemma quux {A : Type*} [add_comm_group A] (n : ℕ) (f : ℕ → A) : (finset.range (n+1)).sum f = f n + (finset.range n).sum f := by simp
 
 lemma X_in_terms_of_W_prop₂ (k : ℕ) : (witt_polynomial k).eval₂ C X_in_terms_of_W = X k :=
 begin
   apply nat.strong_induction_on k,
   clear k, intros k H,
-  dsimp only [witt_polynomial],
+  unfold witt_polynomial,
   conv
   begin
     to_lhs,
-    congr, skip,
-    rw quux k (λ (i : ℕ), C ↑p ^ i * X i ^ p ^ (k - i)),
+    congr, skip, skip,
+    rw quux k (λ (i : ℕ), ((C ↑p ^ i * X i ^ p ^ (k - i)) : mv_polynomial ℕ ℚ)),
   end,
-  -- generalize e : eval X_in_terms_of_W = f,
-  -- haveI : is_ring_hom f := by subst f; apply eval.is_ring_hom,
-  -- simp only [ring_hom_sum.finset f],
-  -- repeat {sorry}, end #exit
-  sorry
+  rw is_ring_hom.map_add (eval₂ C X_in_terms_of_W),
+  rw is_ring_hom.map_mul (eval₂ C X_in_terms_of_W),
+  rw ring_hom_powers (eval₂ C X_in_terms_of_W),
+  rw eval₂_C,
+  rw ring_hom_powers (eval₂ C X_in_terms_of_W),
+  rw nat.sub_self,
+  rw nat.pow_zero,
+  rw pow_one,
+  rw eval₂_X,
+  rw X_in_terms_of_W_eq,
+  rw mul_comm,
+  rw mul_assoc,
+  rw ← ring_hom_powers C,
+  rw [← C_mul, one_div_mul_cancel, C_1, mul_one],
+  { rw ring_hom_sum.finset (eval₂ C X_in_terms_of_W),
+    rw sub_add_eq_add_sub,
+    apply sub_eq_of_eq_add',
+    rw add_comm,
+    rw function.comp,
+    congr,
+    funext i,
+    rw is_ring_hom.map_mul (eval₂ C X_in_terms_of_W),
+    rw ring_hom_powers (eval₂ C X_in_terms_of_W),
+    rw eval₂_C,
+    rw ring_hom_powers (eval₂ C X_in_terms_of_W),
+    rw eval₂_X,
+    {apply_instance} },
+  exact pow_ne_zero _ (nat.cast_ne_zero.2 $ ne_of_gt pp.pos),
+  apply_instance
 end
 
 lemma eval₂_assoc
@@ -188,4 +210,14 @@ begin
     rw eval₂_assoc,
     rw X_in_terms_of_W_prop₂ k,
     rw eval₂_X }
+end
+
+def witt_structure_int (Φ : mv_polynomial bool ℤ) (n : ℕ) : mv_polynomial (bool × ℕ) ℤ :=
+finsupp.map_range rat.num (rat.coe_int_num 0) (witt_structure_rat (map int.cast Φ) n)
+
+lemma witt_structure_int_prop (Φ : mv_polynomial bool ℤ) (n : ℕ) :
+(map int.cast (witt_structure_int Φ n)) = witt_structure_rat (map int.cast Φ) n :=
+begin
+  unfold witt_structure_int,
+  sorry
 end
